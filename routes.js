@@ -15,7 +15,7 @@ route.get('/users', (req, res) => {
 
 // Rota para adicionar um novo usuário
 route.post('/users', (req, res) => {
-    const { username, password,email } = req.body;
+    const { username, password,email,nickname } = req.body;
 
     if(!username){
         return res.status(400).json("Por gentileza insira o username");
@@ -29,7 +29,7 @@ route.post('/users', (req, res) => {
         return res.status(400).json("Por gentileza insira o email");
     }
 
-    pool.query('INSERT INTO login (username, email, password) VALUES ($1, $2,$3)', [username, password,email], (error, result) => {
+    pool.query('INSERT INTO login (username, email, password,nickname) VALUES ($1, $2,$3,$4)', [username, password,email,nickname], (error, result) => {
         if (error) {
             throw error;
         }
