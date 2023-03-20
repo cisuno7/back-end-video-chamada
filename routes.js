@@ -17,15 +17,15 @@ route.get('/users', (req, res) => {
 route.post('/users', (req, res) => {
     const { username, password,email,nickname } = req.body;
 
-    if(!username){
+    if(username == null){
         return res.status(400).json("Por gentileza insira o username");
     }
     
-    if(!password){
+    if(password==null){
         return res.status(400).json("Por gentileza insira o password");
     }
     
-    if(!email){
+    if(email==null){
         return res.status(400).json("Por gentileza insira o email");
     }
 
