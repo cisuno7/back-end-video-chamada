@@ -21,7 +21,9 @@ route.post('/users', (req, res) => {
 
     pool.query('INSERT INTO login (username, email, password,nickname) VALUES ($1, $2,$3,$4)', [username, password,email,nickname], (error, result) => {
         if (error) {
-            throw error;
+            console.error(error);
+
+            return res.status(500).send('Erro ao criar usuário');
         }
         res.status(201).send(`Usuário ${username} criado com sucesso.`);
     });
