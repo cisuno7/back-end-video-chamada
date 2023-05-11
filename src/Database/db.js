@@ -1,23 +1,16 @@
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
 
-require('dotenv').config()
-const { Pool } = require('pg');
+const firebaseConfig = {
+  apiKey: process.env.APIKEY,
+  authDomain: process.env.AUTHDOMAIN,
+  databaseURL: process.env.DATABASEURL,
+  projectId: process.env.PROJECTID,
+  storageBucket: process.env.STORAGEBUCKET,
+  messagingSenderId: process.env.MESSAGINGSENDERID,
+  appId: process.env.APPID,
+  measurementId: process.env.MEASUREMENTID
+};
 
-const pool = new Pool({
-    user: process.env.DB_USER,
-    host:  process.env.DB_HOST,
-    database:  process.env.DB_DATABASE,
-    password:  process.env.DB_PASSWORD,
-    port:  process.env.DB_PORT,
-});
-
-// const query = (text, param) => {
-//     return pool.query(text, param);
-// }
-
-
-module.exports = pool;
-
-
-
-
-
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
