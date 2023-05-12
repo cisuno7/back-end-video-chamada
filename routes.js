@@ -1,48 +1,63 @@
 const express = require('express');
-const pool = require('./src/Database/db')
-const route = express();
+const firebase = require('./src/Database/db');
 
+const route = express();
 
 // Rota para listar todos os usuários
 route.get('/users', (req, res) => {
-    pool.query('SELECT * FROM login', (error, results) => {
-        if (error) {
-            return res.status(404).json("Sucesso");
-        }
-        res.status(200).json(results.rows);
-    });
+    firebase.firestore().collection('usuários').get()
+        .then((snapshot) => {
+            const results = [];
+            snapshot.forEach((doc) => {
+                results.push(doc.data());
+            });
+            res.status(200).json(results);
+        })
+        .catch((error) => {
+            console.error(error);
+            res.status(500).send('Erro ao listar usuários');
+        });
 });
 
 // Rota para adicionar um novo usuário
 route.post('/users', (req, res) => {
-    const { username, password,email,nickname } = req.body;
+    const { Nome, senha, email } = req.body;
 
-  
-
-    pool.query('INSERT INTO login (username, email, password,nickname) VALUES ($1, $2,$3,$4)', [username, password,email,nickname], (error, result) => {
-        if (error) {
+    firebase.firestore().collection('usuários').add({
+        senha: senha,
+        email: email,
+        Nome: nome
+    })
+        .then(() => {
+            res.status(201).send(`Usuário ${Nome} criado com sucesso.`);
+        })
+        .catch((error) => {
             console.error(error);
-
-            return res.status(500).send('Erro ao criar usuário');
-        }
-        res.status(201).send(`Usuário ${username} criado com sucesso.`);
-    });
+            res.status(500).send('Erro ao criar usuário');
+        });
 });
+
 // Rota para autenticar um usuário
 route.post('/auth', (req, res) => {
-    const { email, password } = req.body;
-    pool.query('SELECT * FROM login WHERE email = $1 AND password = $2', [email, password], (error, results) => {
-        if (error) {
-            throw error;
-        }
-        if (results.rowCount === 1) {
-            // Usuário autenticado com sucesso
-            res.status(200).send('Usuário autenticado com sucesso.');
-        } else {
-            // Falha na autenticação
-            res.status(401).send('Email ou senha incorretos.');
-        }
-    });
+    const { email, senha } = req.body;
+
+    firebase.firestore().collection('usuários')
+        .where('email', '==', email)
+        .where('password', '==', senha)
+        .get()
+        .then((snapshot) => {
+            if (snapshot.size === 1) {
+                // Usuário autenticado com sucesso
+                res.status(200).send('Usuário autenticado com sucesso.');
+            } else {
+                // Falha na autenticação
+                res.status(401).send('Email ou senha incorretos.');
+            }
+        })
+        .catch((error) => {
+            console.error(error);
+            res.status(500).send('Erro ao autenticar usuário');
+        });
 });
 
 module.exports = route;
