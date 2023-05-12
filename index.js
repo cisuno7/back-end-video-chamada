@@ -22,5 +22,5 @@ app.use(express.json());
 app.use(route);
 
 app.listen(process.env.PORT || 3000, ()=>{
-    console.log("Servidor Online")
+    console.log("Servidor da Bipix Online")
 })

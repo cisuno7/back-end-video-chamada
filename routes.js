@@ -21,14 +21,19 @@ route.get('/users', (req, res) => {
         });
 });
 
-// Rota para adicionar um novo usuário
+// Rota para criar um usuário
 route.post('/users', (req, res) => {
     const { Nome, senha, email } = req.body;
 
-    firebase.collection('usuários').post({
+    if (!Nome || !senha || !email) {
+        res.status(400).send('Dados inválidos');
+        return;
+    }
+
+    firebase.collection('usuários').add({
         senha: senha,
         email: email,
-        Nome: nome
+        Nome: Nome,
     })
         .then(() => {
             res.status(201).send(`Usuário ${Nome} criado com sucesso.`);
@@ -43,9 +48,14 @@ route.post('/users', (req, res) => {
 route.post('/auth', (req, res) => {
     const { email, senha } = req.body;
 
+    if (!email || !senha) {
+        res.status(400).send('Dados inválidos');
+        return;
+    }
+
     firebase.collection('usuários')
         .where('email', '==', email)
-        .where('password', '==', senha)
+        .where('senha', '==', senha)
         .get()
         .then((snapshot) => {
             if (snapshot.size === 1) {
@@ -61,5 +71,6 @@ route.post('/auth', (req, res) => {
             res.status(500).send('Erro ao autenticar usuário');
         });
 });
+
 
 module.exports = route;
