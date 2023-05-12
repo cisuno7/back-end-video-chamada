@@ -1,11 +1,13 @@
 const express = require('express');
 const firebase = require('./src/Database/db');
+require('firebase/compat/app')
+
 
 const route = express();
 
 // Rota para listar todos os usuários
 route.get('/users', (req, res) => {
-    firebase.firestore().collection('usuários').get()
+    firebase.collection('usuários').get()
         .then((snapshot) => {
             const results = [];
             snapshot.forEach((doc) => {
@@ -23,7 +25,7 @@ route.get('/users', (req, res) => {
 route.post('/users', (req, res) => {
     const { Nome, senha, email } = req.body;
 
-    firebase.firestore().collection('usuários').add({
+    firebase.collection('usuários').post({
         senha: senha,
         email: email,
         Nome: nome
@@ -41,7 +43,7 @@ route.post('/users', (req, res) => {
 route.post('/auth', (req, res) => {
     const { email, senha } = req.body;
 
-    firebase.firestore().collection('usuários')
+    firebase.collection('usuários')
         .where('email', '==', email)
         .where('password', '==', senha)
         .get()
