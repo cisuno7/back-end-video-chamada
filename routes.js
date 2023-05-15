@@ -24,13 +24,21 @@ route.get('/users', (req, res) => {
 // Rota para criar um usuário
 route.post('/users', (req, res) => {
     const { nome, senha, email } = req.body;
+
+    if (!nome || !senha || !email) {
+        res.status(400).send('Dados inválidos');
+        return;
+    }
+
+    if (typeof nome !== 'string' || typeof senha !== 'string' || typeof email !== 'string') {
+        res.status(400).send('Os campos devem ser strings válidas');
+        return;
+    }
+    
     firebase.collection('usuários').add({
-        
-            "nome": nome,
-            "senha": senha,
-            "email": email
-          
-          
+        "nome": nome,
+        "senha": senha,
+        "email": email
     })
       .then(() => {
         res.status(201).send(`Usuário ${nome} criado com sucesso.`);
@@ -39,8 +47,13 @@ route.post('/users', (req, res) => {
         console.error(error);
         res.status(500).send('Erro ao criar usuário');
       });
-  });
-  
+
+      if (!nome || !senha || !email) {
+        res.status(400).send('Dados inválidos');
+        return;
+      }
+});
+
 
 // Rota para autenticar um usuário
 route.post('/auth', (req, res) => {
