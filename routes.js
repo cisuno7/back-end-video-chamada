@@ -26,9 +26,9 @@ route.post('/users', (req, res) => {
     const { nome, senha, email } = req.body;
     firebase.collection('usuários').add({
         
-            "nome": "John Doe",
-            "senha": "senha123",
-            "email": "johndoe@example.com"
+            "nome": nome,
+            "senha": senha,
+            "email": email
           
           
     })
@@ -46,11 +46,9 @@ route.post('/users', (req, res) => {
 route.post('/auth', (req, res) => {
     const { email, senha } = req.body;
 
-    
-
     firebase.collection('usuários')
-        .where('email', '==', 'bipix@gmail.com')
-        .where('senha', '==', 'senha123')
+        .where('email', '==', email)
+        .where('senha', '==', senha)
         .get()
         .then((snapshot) => {
             if (snapshot.size === 1) {
