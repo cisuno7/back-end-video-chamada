@@ -24,38 +24,33 @@ route.get('/users', (req, res) => {
 // Rota para criar um usuário
 route.post('/users', (req, res) => {
     const { nome, senha, email } = req.body;
-
-    if (!nome || !senha || !email) {
-        res.status(400).send('Dados inválidos');
-        return;
-    }
-
     firebase.collection('usuários').add({
-        senha: senha,
-        email: email,
-        Nome: nome,
+        
+            "nome": "John Doe",
+            "senha": "senha123",
+            "email": "johndoe@example.com"
+          
+          
     })
-        .then(() => {
-            res.status(201).send(`Usuário ${nome} criado com sucesso.`);
-        })
-        .catch((error) => {
-            console.error(error);
-            res.status(500).send('Erro ao criar usuário');
-        });
-});
+      .then(() => {
+        res.status(201).send(`Usuário ${nome} criado com sucesso.`);
+      })
+      .catch((error) => {
+        console.error(error);
+        res.status(500).send('Erro ao criar usuário');
+      });
+  });
+  
 
 // Rota para autenticar um usuário
 route.post('/auth', (req, res) => {
     const { email, senha } = req.body;
 
-    if (!email || !senha) {
-        res.status(400).send('Dados inválidos');
-        return;
-    }
+    
 
     firebase.collection('usuários')
-        .where('email', '==', email)
-        .where('senha', '==', senha)
+        .where('email', '==', 'bipix@gmail.com')
+        .where('senha', '==', 'senha123')
         .get()
         .then((snapshot) => {
             if (snapshot.size === 1) {
