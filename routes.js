@@ -23,42 +23,32 @@ route.get('/users', (req, res) => {
 
 // Rota para criar um usuário
 route.post('/users', (req, res) => {
-    const { nome, senha, email } = req.body;
+    const { username, email, password } = req.body;
 
-    if (!nome || !senha || !email) {
+    if (!username || !email || !password || typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
         res.status(400).send('Dados inválidos');
         return;
     }
 
-    if (typeof nome !== 'string' || typeof senha !== 'string' || typeof email !== 'string') {
-        res.status(400).send('Os campos devem ser strings válidas');
-        return;
-    }
-    
     firebase.collection('usuários').add({
-        "nome": nome,
-        "senha": senha,
+        "nome": username,
+        "senha": password,
         "email": email
     })
       .then(() => {
-        res.status(201).send(`Usuário ${nome} criado com sucesso.`);
+        res.status(201).send(`Usuário ${username} criado com sucesso.`);
       })
       .catch((error) => {
         console.error(error);
         res.status(500).send('Erro ao criar usuário');
       });
-
-      if (!nome || !senha || !email) {
-        res.status(400).send('Dados inválidos');
-        return;
-      }
 });
 
 
 // Rota para autenticar um usuário
 route.post('/auth', (req, res) => {
     const { email, senha } = req.body;
-
+    
     firebase.collection('usuários')
         .where('email', '==', email)
         .where('senha', '==', senha)
