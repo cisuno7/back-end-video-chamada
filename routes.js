@@ -23,9 +23,9 @@ route.get('/users', (req, res) => {
 
 // Rota para criar um usuário
 route.post('/users', (req, res) => {
-    const { Nome, senha, email } = req.body;
+    const { nome, senha, email } = req.body;
 
-    if (!Nome || !senha || !email) {
+    if (!nome || !senha || !email) {
         res.status(400).send('Dados inválidos');
         return;
     }
@@ -33,10 +33,10 @@ route.post('/users', (req, res) => {
     firebase.collection('usuários').add({
         senha: senha,
         email: email,
-        Nome: Nome,
+        Nome: nome,
     })
         .then(() => {
-            res.status(201).send(`Usuário ${Nome} criado com sucesso.`);
+            res.status(201).send(`Usuário ${nome} criado com sucesso.`);
         })
         .catch((error) => {
             console.error(error);
