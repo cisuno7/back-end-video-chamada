@@ -5,7 +5,8 @@ const fs = require('fs');
 const bodyParser = require('body-parser');
 
 const route = express();
-
+route.use(bodyParser.urlencoded({ extended: true }));
+route.use(bodyParser.json());
 
 // Middleware para processar o upload de arquivos
 route.use(fileUpload());
@@ -78,37 +79,28 @@ route.post('/auth', async (req, res) => {
   });
   
 
-route.post('/upload', (req, res) => {
-    if (!req.files || !req.files.photo) {
+  route.post('/upload', (req, res) => {
+    if (!req.files.photo|| !req.files.photo.data) {
       res.status(400).send('Nenhuma foto encontrada');
       return;
     }
   
-    const photo = req.files.photo;
+    const photoBuffer = req.files.photo.data;
   
-    // Lê o arquivo da foto
-    fs.readFile(photo.tempFilePath, (error, data) => {
-      if (error) {
-        console.error(error);
-        res.status(500).send('Erro ao ler a foto');
-        return;
-      }
+    // Converte o buffer da foto em base64
+    const base64Photo = photoBuffer.toString('base64');
   
-      // Converte a foto em base64
-      const base64Photo = data.toString('base64');
-  
-      // Salva a foto no banco de dados
-      firebase.collection('fotos').add({
-        photo: base64Photo, // Salva a foto no campo 'photo'
+    // Salva a foto no banco de dados
+    firebase.collection('usuários').add({
+      photo: base64Photo, // Salva a foto no campo 'photo'
+    })
+      .then(() => {
+        res.status(201).send('Foto enviada com sucesso');
       })
-        .then(() => {
-          res.status(201).send('Foto enviada com sucesso');
-        })
-        .catch((error) => {
-          console.error(error);
-          res.status(500).send('Erro ao enviar a foto');
-        });
-    });
+      .catch((error) => {
+        console.error(error);
+        res.status(500).send('Erro ao enviar a foto');
+      });
   });
   
   
