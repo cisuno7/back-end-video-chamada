@@ -103,6 +103,54 @@ route.post('/auth', async (req, res) => {
       });
   });
   
+
+  route.post('/addFriend', (req, res) => {
+    const { nome } = req.body;
+    const friendName = nome.toLowerCase();
+  
+    const userId = req.headers['user-id'];
+  
+    if (!userId) {
+      res.status(400).send('O cabeçalho "user-id" não foi fornecido.');
+      return;
+    }
+  
+    // Verificar se o usuário logado existe
+    firebase.collection('usuários').doc(userId)
+      .get()
+      .then((doc) => {
+        if (!doc.exists) {
+          res.status(404).send('Usuário logado não encontrado.');
+          return;
+        }
+  
+        const userData = doc.data();
+        const friends = userData.friends || [];
+  
+        // Verificar se o amigo já está na lista de amigos
+        if (friends.includes(friendName)) {
+          res.status(400).send('O amigo já está na lista de amigos.');
+          return;
+        }
+  
+        // Adicionar o amigo à lista de amigos
+        friends.push(friendName);
+  
+        // Atualizar os dados do usuário logado no banco de dados
+        doc.ref.update({ friends })
+          .then(() => {
+            res.status(200).send(`O amigo ${friendName} foi adicionado com sucesso.`);
+          })
+          .catch((error) => {
+            console.error(error);
+            res.status(500).send('Erro ao adicionar o amigo.');
+          });
+      })
+      .catch((error) => {
+        console.error(error);
+        res.status(500).send('Erro ao buscar usuário logado.');
+      });
+  });
   
   module.exports = route;
   
