@@ -70,7 +70,7 @@ route.post('/auth', async (req, res, next) => {
     if (!snapshot.empty) {
       const userId = snapshot.docs[0].id; // Obtém o ID do usuário logado
       req.userId = userId; // Armazena o ID do usuário logado na variável de solicitação
-      res.status(200).send('Usuário autenticado com sucesso.');
+      res.status(200).json({ userId });
     } else {
       res.status(401).send('Email ou senha incorretos.');
     }
@@ -155,6 +155,6 @@ route.post('/auth', async (req, res, next) => {
         res.status(500).send('Erro ao buscar usuário logado.');
       });
   });
-  
+
   module.exports = route;
   
