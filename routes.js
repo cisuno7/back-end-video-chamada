@@ -52,32 +52,33 @@ route.post('/users', (req, res) => {
 
 
 // Rota para autenticar um usuário
-route.post('/auth', async (req, res) => {
-    const { email, senha } = req.body;
-  
-    if (!email || !senha || typeof email !== 'string' || typeof senha !== 'string') {
-      res.status(400).send('Campos de email e senha são obrigatórios e devem ser strings.');
-      return;
+route.post('/auth', async (req, res, next) => {
+  const { email, senha } = req.body;
+
+  if (!email || !senha || typeof email !== 'string' || typeof senha !== 'string') {
+    res.status(400).send('Campos de email e senha são obrigatórios e devem ser strings.');
+    return;
+  }
+
+  try {
+    const snapshot = await firebase
+      .collection('usuários')
+      .where('email', '==', email)
+      .where('senha', '==', senha)
+      .get();
+
+    if (!snapshot.empty) {
+      const userId = snapshot.docs[0].id; // Obtém o ID do usuário logado
+      req.userId = userId; // Armazena o ID do usuário logado na variável de solicitação
+      res.status(200).send('Usuário autenticado com sucesso.');
+    } else {
+      res.status(401).send('Email ou senha incorretos.');
     }
-  
-    try {
-      const snapshot = await firebase
-        .collection('usuários')
-        .where('email', '==', email)
-        .where('senha', '==', senha)
-        .get();
-  
-      if (!snapshot.empty) {
-        res.status(200).send('Usuário autenticado com sucesso.');
-      } else {
-        res.status(401).send('Email ou senha incorretos.');
-      }
-    } catch (error) {
-      console.error(error);
-      res.status(500).send('Erro ao autenticar usuário');
-    }
-  });
-  
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Erro ao autenticar usuário');
+  }
+});
 
   route.post('/upload', (req, res) => {
     if (!req.files.photo|| !req.files.photo.data) {
@@ -103,12 +104,12 @@ route.post('/auth', async (req, res) => {
       });
   });
   
-
+// Rota para adicionar amigo ao usuário logado 
   route.post('/addFriend', (req, res) => {
     const { nome } = req.body;
     const friendName = nome.toLowerCase();
   
-    const userId = req.headers['user-id'];
+    const userId = req.userId; // Obtém o ID do usuário logado da variável de solicitação
   
     if (!userId) {
       res.status(400).send('O cabeçalho "user-id" não foi fornecido.');
@@ -116,7 +117,9 @@ route.post('/auth', async (req, res) => {
     }
   
     // Verificar se o usuário logado existe
-    firebase.collection('usuários').doc(userId)
+    firebase
+      .collection('usuários')
+      .doc(userId)
       .get()
       .then((doc) => {
         if (!doc.exists) {
@@ -137,7 +140,8 @@ route.post('/auth', async (req, res) => {
         friends.push(friendName);
   
         // Atualizar os dados do usuário logado no banco de dados
-        doc.ref.update({ friends })
+        doc.ref
+          .update({ friends })
           .then(() => {
             res.status(200).send(`O amigo ${friendName} foi adicionado com sucesso.`);
           })
