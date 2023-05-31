@@ -3,6 +3,7 @@ const firebase = require('./src/Database/db');
 const fileUpload = require('express-fileupload');
 const fs = require('fs');
 const bodyParser = require('body-parser');
+const admin = require('firebase-admin');
 
 const route = express();
 route.use(bodyParser.urlencoded({ extended: true }));
@@ -82,82 +83,94 @@ route.post('/auth', async (req, res, next) => {
   }
 });
 
-  route.post('/upload', (req, res) => {
-    if (!req.files.photo|| !req.files.photo.data) {
-      res.status(400).send('Nenhuma foto encontrada');
-      return;
-    }
-  
-    const photoBuffer = req.files.photo.data;
-  
-    // Converte o buffer da foto em base64
-    const base64Photo = photoBuffer.toString('base64');
-  
-    // Salva a foto no banco de dados
-    firebase.collection('usuários').add({
-      photo: base64Photo, // Salva a foto no campo 'photo'
+route.post('/upload', (req, res) => {
+  if (!req.files.photo || !req.files.photo.data) {
+    res.status(400).send('Nenhuma foto encontrada');
+    return;
+  }
+
+  const photoBuffer = req.files.photo.data;
+
+  // Converte o buffer da foto em base64
+  const base64Photo = photoBuffer.toString('base64');
+
+  // Salva a foto no banco de dados
+  firebase.collection('usuários').add({
+    photo: base64Photo, // Salva a foto no campo 'photo'
+  })
+    .then(() => {
+      res.status(201).send('Foto enviada com sucesso');
     })
-      .then(() => {
-        res.status(201).send('Foto enviada com sucesso');
-      })
-      .catch((error) => {
-        console.error(error);
-        res.status(500).send('Erro ao enviar a foto');
-      });
-  });
-  
+    .catch((error) => {
+      console.error(error);
+      res.status(500).send('Erro ao enviar a foto');
+    });
+});
+
 // Rota para adicionar amigo ao usuário logado 
 // body = [userId, friendId, nome]
-  route.post('/addFriend', (req, res) => {
-    const friendName = req.body.nome;
-    const friendId = req.body.friendId; // Obtém o ID do usuário logado da variável de solicitação
-    const userId = req.body.userId;
-    
-    if (!friendId) {
-      res.status(400).send('O cabeçalho "user-id" não foi fornecido.');
-      return;
-    }
-  
-    // Verificar se o usuário logado existe
-    firebase
-      .collection('usuários')
-      .doc(userId)
-      .get()
-      .then((doc) => {
-        if (!doc.exists) {
-          res.status(404).send('Usuário logado não encontrado.');
-          return;
-        }
-  
-        const userData = doc.data();
-        const friends = userData.friends || [];
-  
-        // Verificar se o amigo já está na lista de amigos
-        if (friends.includes(friendName)) {
-          res.status(400).send('O amigo já está na lista de amigos.');
-          return;
-        }
-  
-        // Adicionar o amigo à lista de amigos
-        friends.push(friendName);
-        
-        // Atualizar os dados do usuário logado no banco de dados
-        doc
+route.post('/addFriend', (req, res) => {
+  const friendName = req.body.nome;
+  const friendId = req.body.friendId; // Obtém o ID do usuário logado da variável de solicitação
+  const userId = req.body.userId;
+
+  if (!friendId) {
+    res.status(400).send('O cabeçalho "user-id" não foi fornecido.');
+    return;
+  }
+
+  // Verificar se o usuário logado existe
+  firebase
+    .collection('usuários')
+    .doc(userId)
+    .get()
+    .then((doc) => {
+      if (!doc.exists) {
+        res.status(404).send('Usuário logado não encontrado.');
+        return;
+      }
+
+      const userData = doc.data();
+      const friends = userData.friends || [];
+
+      // Verificar se o amigo já está na lista de amigos
+      if (friends.includes(friendName)) {
+        res.status(400).send('O amigo já está na lista de amigos.');
+        return;
+      }
+
+      // Adicionar o amigo à lista de amigos
+      friends.push(friendName);
+
+      // Atualizar os dados do usuário logado no banco de dados
+      doc
         .ref
-        .update({friends:friends})
+        .update({ friends: friends })
         .then(() => {
+          firebase
+            .collection("usuários")
+            .doc(friendId)
+            .collection("notifications")
+            .add({
+              created_at: admin.firestore.FieldValue.serverTimestamp(),
+              type: "INVITE",
+              title: "Convite",
+              content: `${userData["nome"]} está te convidando para jogar com ele.`,
+              from: userData["id"],
+              to: friendId,
+              visualized: false,
+            });
           res.status(200).send(`O amigo ${friendName} foi adicionado com sucesso.`);
         })
         .catch((error) => {
           console.error(error);
           res.status(500).send('Erro ao adicionar o amigo.');
         });
-      })
-      .catch((error) => {
-        console.error(error);
-        res.status(500).send('Erro ao buscar usuário logado.');
-      });
-  });
+    })
+    .catch((error) => {
+      console.error(error);
+      res.status(500).send('Erro ao buscar usuário logado.');
+    });
+});
 
-  module.exports = route;
-  
+module.exports = route;
