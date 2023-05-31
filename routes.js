@@ -28,7 +28,7 @@ route.get('/users', (req, res) => {
 });
 
 // Rota para criar um usuário
-route.post('/users', (req, res) => {
+route.post('/users', async (req, res) => {
     const { username, email, password } = req.body;
 
     if (!username || !email || !password || typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
@@ -36,12 +36,14 @@ route.post('/users', (req, res) => {
         return;
     }
 
-    firebase.collection('usuários').add({
+    await firebase.collection('usuários').add({
         "nome": username,
         "senha": password,
-        "email": email
+        "email": email,
+        "photo":"",
     })
-      .then(() => {
+      .then((doc) => {
+        doc.update({"id":doc.id});
         res.status(201).send(`Usuário ${username} criado com sucesso.`);
       })
       .catch((error) => {
