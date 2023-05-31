@@ -14,43 +14,83 @@ route.use(fileUpload());
 
 // Rota para listar todos os usuários
 route.get('/users', (req, res) => {
-    firebase.collection('usuários').get()
-        .then((snapshot) => {
-            const results = [];
-            snapshot.forEach((doc) => {
-                results.push(doc.data());
-            });
-            res.status(200).json(results);
-        })
-        .catch((error) => {
-            console.error(error);
-            res.status(500).send('Erro ao listar usuários');
-        });
+  firebase.collection('usuários').get()
+    .then((snapshot) => {
+      const results = [];
+      snapshot.forEach((doc) => {
+        results.push(doc.data());
+      });
+      res.status(200).json(results);
+    })
+    .catch((error) => {
+      console.error(error);
+      res.status(500).send('Erro ao listar usuários');
+    });
 });
+
+// Rota para listar notificações 
+route.post("/notifications", async (req, res) => {
+  firebase
+    .collection('usuários')
+    .doc(req.body.userId)
+    .collection("notifications")
+    .get().then((snapshot) => {
+      const results = [];
+      snapshot.forEach((doc) => {
+        results.push(doc.data());
+      });
+      res.status(200).json(results);
+    })
+    .catch((error) => {
+      console.error(error);
+      res.status(500).send('Erro ao listar notificações');
+    });
+});
+
+// Rota para limpar notificações visuzalizadas
+route.post("/clearNewNotifications", async (req, res) => {
+  console.log("clearNewNotifications");
+  firebase
+    .collection('usuários')
+    .doc(req.body.userId)
+    .collection("notifications")
+    .where("visualized", "==", false)
+    .get().then((snapshot) => {
+      snapshot.forEach((doc) => {
+        doc.ref.update({ visualized: true });
+      });
+      res.status(200);
+    })
+    .catch((error) => {
+      console.error(error);
+      res.status(500).send('Erro ao listar notificações');
+    });
+});
+
 
 // Rota para criar um usuário
 route.post('/users', async (req, res) => {
-    const { username, email, password } = req.body;
+  const { username, email, password } = req.body;
 
-    if (!username || !email || !password || typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
-        res.status(400).send('Dados inválidos');
-        return;
-    }
+  if (!username || !email || !password || typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
+    res.status(400).send('Dados inválidos');
+    return;
+  }
 
-    await firebase.collection('usuários').add({
-        "nome": username,
-        "senha": password,
-        "email": email,
-        "photo":"",
+  await firebase.collection('usuários').add({
+    "nome": username,
+    "senha": password,
+    "email": email,
+    "photo": "",
+  })
+    .then((doc) => {
+      doc.update({ "id": doc.id });
+      res.status(201).send(`Usuário ${username} criado com sucesso.`);
     })
-      .then((doc) => {
-        doc.update({"id":doc.id});
-        res.status(201).send(`Usuário ${username} criado com sucesso.`);
-      })
-      .catch((error) => {
-        console.error(error);
-        res.status(500).send('Erro ao criar usuário');
-      });
+    .catch((error) => {
+      console.error(error);
+      res.status(500).send('Erro ao criar usuário');
+    });
 });
 
 
