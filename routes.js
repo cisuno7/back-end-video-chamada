@@ -107,13 +107,13 @@ route.post('/auth', async (req, res, next) => {
   });
   
 // Rota para adicionar amigo ao usuário logado 
+// body = [userId, friendId, nome]
   route.post('/addFriend', (req, res) => {
-    const { nome } = req.body;
-    const friendName = nome.toLowerCase();
-  
-    const userId = req.userId; // Obtém o ID do usuário logado da variável de solicitação
-  
-    if (!userId) {
+    const friendName = req.body.nome;
+    const friendId = req.body.friendId; // Obtém o ID do usuário logado da variável de solicitação
+    const userId = req.body.userId;
+    
+    if (!friendId) {
       res.status(400).send('O cabeçalho "user-id" não foi fornecido.');
       return;
     }
@@ -140,17 +140,18 @@ route.post('/auth', async (req, res, next) => {
   
         // Adicionar o amigo à lista de amigos
         friends.push(friendName);
-  
+        
         // Atualizar os dados do usuário logado no banco de dados
-        doc.ref
-          .update({ friends })
-          .then(() => {
-            res.status(200).send(`O amigo ${friendName} foi adicionado com sucesso.`);
-          })
-          .catch((error) => {
-            console.error(error);
-            res.status(500).send('Erro ao adicionar o amigo.');
-          });
+        doc
+        .ref
+        .update({friends:friends})
+        .then(() => {
+          res.status(200).send(`O amigo ${friendName} foi adicionado com sucesso.`);
+        })
+        .catch((error) => {
+          console.error(error);
+          res.status(500).send('Erro ao adicionar o amigo.');
+        });
       })
       .catch((error) => {
         console.error(error);
