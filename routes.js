@@ -28,6 +28,48 @@ route.get('/users', (req, res) => {
     });
 });
 
+//rota para listar os amigos adicionados
+route.get('/listaamigos', (req, res) => {
+  firebase
+    .collection('usuários')
+    .get()
+    .then((snapshot) => {
+      const results = [];
+      snapshot.forEach((doc) => {
+        const userData = doc.data();
+        const friends = userData.friends || [];
+
+        // Modify the user data to include friends with friendName and friendId
+        const modifiedUserData = {
+          ...userData,
+          friends: friends.map(friend => ({
+            friendName: friend.friendName,
+            friendId: friend.friendId
+          }))
+        };
+
+        results.push(modifiedUserData);
+      });
+
+      // Flatten the array of friends from all users
+      const friendsList = results.reduce((accumulator, user) => {
+        accumulator.push(...user.friends);
+        return accumulator;
+      }, []);
+
+      res.status(200).json(friendsList);
+    })
+    .catch((error) => {
+      console.error(error);
+      res.status(500).send('Erro ao listar amigos');
+    });
+});
+
+
+
+
+
+
 // Rota para listar notificações 
 route.post("/notifications", async (req, res) => {
   firebase
@@ -174,13 +216,13 @@ route.post('/addFriend', (req, res) => {
       const friends = userData.friends || [];
 
       // Verificar se o amigo já está na lista de amigos
-      if (friends.some(friend => friend.friendId === friendId)) {
+      if (friends.includes(friendName)) {
         res.status(400).send('O amigo já está na lista de amigos.');
         return;
       }
 
       // Adicionar o amigo à lista de amigos
-      friends.push({ friendName, friendId });
+      friends.push(friendName);
 
       // Atualizar os dados do usuário logado no banco de dados
       doc
