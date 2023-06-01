@@ -174,13 +174,13 @@ route.post('/addFriend', (req, res) => {
       const friends = userData.friends || [];
 
       // Verificar se o amigo já está na lista de amigos
-      if (friends.includes(friendName)) {
+      if (friends.some(friend => friend.friendId === friendId)) {
         res.status(400).send('O amigo já está na lista de amigos.');
         return;
       }
 
       // Adicionar o amigo à lista de amigos
-      friends.push(friendName);
+      friends.push({ friendName, friendId });
 
       // Atualizar os dados do usuário logado no banco de dados
       doc
