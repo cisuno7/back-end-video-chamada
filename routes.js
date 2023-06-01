@@ -29,7 +29,7 @@ route.get('/users', (req, res) => {
 });
 
 //rota para listar os amigos adicionados
-route.get('/listaamigos', (req, res) => {
+route.get('/listfriends', (req, res) => {
   firebase
     .collection('usuários')
     .get()
@@ -64,11 +64,6 @@ route.get('/listaamigos', (req, res) => {
       res.status(500).send('Erro ao listar amigos');
     });
 });
-
-
-
-
-
 
 // Rota para listar notificações 
 route.post("/notifications", async (req, res) => {
