@@ -34,28 +34,18 @@ route.get('/listfriends', (req, res) => {
     .collection('usuários')
     .get()
     .then((snapshot) => {
-      const results = [];
+      const friendsList = [];
+
       snapshot.forEach((doc) => {
         const userData = doc.data();
         const friends = userData.friends || [];
+        const userId = doc.id;
 
-        // Modify the user data to include friends with friendName and friendId
-        const modifiedUserData = {
-          ...userData,
-          friends: friends.map(friend => ({
-            friendName: friend.friendName,
-            friendId: friend.friendId
-          }))
-        };
-
-        results.push(modifiedUserData);
+        friendsList.push({
+          id: userId,
+          friends: friends
+        });
       });
-
-      // Flatten the array of friends from all users
-      const friendsList = results.reduce((accumulator, user) => {
-        accumulator.push(...user.friends);
-        return accumulator;
-      }, []);
 
       res.status(200).json(friendsList);
     })
@@ -64,6 +54,8 @@ route.get('/listfriends', (req, res) => {
       res.status(500).send('Erro ao listar amigos');
     });
 });
+
+
 
 // Rota para listar notificações 
 route.post("/notifications", async (req, res) => {
