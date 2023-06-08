@@ -92,7 +92,7 @@ route.post("/clearNewNotifications", async (req, res) => {
     })
     .catch((error) => {
       console.error(error);
-      res.status(500).send('Erro ao listar notificações');
+      res.status(500).send('Erro ao limpar novas notificações');
     });
 });
 
@@ -111,6 +111,8 @@ route.post('/users', async (req, res) => {
     "senha": password,
     "email": email,
     "photo": "",
+    "new_notifications": 0,
+    "credit": 0,
   })
     .then((doc) => {
       doc.update({ "id": doc.id });
@@ -153,6 +155,7 @@ route.post('/auth', async (req, res, next) => {
 });
 
 route.post('/upload', (req, res) => {
+
   if (!req.files.photo || !req.files.photo.data) {
     res.status(400).send('Nenhuma foto encontrada');
     return;
@@ -164,7 +167,7 @@ route.post('/upload', (req, res) => {
   const base64Photo = photoBuffer.toString('base64');
 
   // Salva a foto no banco de dados
-  firebase.collection('usuários').add({
+  firebase.collection('usuários').doc(req.body.userId).update({
     photo: base64Photo, // Salva a foto no campo 'photo'
   })
     .then(() => {
@@ -216,20 +219,25 @@ route.post('/addFriend', (req, res) => {
         .ref
         .update({ friends: friends })
         .then(() => {
-          firebase
+
+          let notRef = firebase
             .collection("usuários")
             .doc(friendId)
-            .collection("notifications")
-            .add({
-              created_at: admin.firestore.FieldValue.serverTimestamp(),
-              type: "INVITE",
-              title: "Convite",
-              content: `${userData["nome"]} está te convidando para jogar com ele.`,
-              from: userData["id"],
-              to: friendId,
-              visualized: false,
-            });
-          res.status(200).send(`O amigo ${friendName} foi adicionado com sucesso.`);
+            .collection("notifications").doc();
+
+          notRef.set({
+            id: notRef.id,
+            created_at: admin.firestore.FieldValue.serverTimestamp(),
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            type: "FRIEND_REQUEST",
+            title: "Convite",
+            content: `${userData["nome"]} quer ser seu amigo, você aceita?`,
+            from: userData["id"],
+            to: friendId,
+            visualized: false,
+            status: "WAITING_ANSWER",
+          });
+          res.status(200).send(`Convite de amizade enviado para ${friendName}.`);
         })
         .catch((error) => {
           console.error(error);
@@ -240,6 +248,80 @@ route.post('/addFriend', (req, res) => {
       console.error(error);
       res.status(500).send('Erro ao buscar usuário logado.');
     });
+});
+
+// body = [notification, answer]
+route.post("/answerFriendRequest", async (req, res) => {
+  let notification = req.body.notification;
+  let answer = req.body.answer
+
+  // console.log(req.body);
+
+  const userDoc = firebase.collection("usuários").doc(notification.to);
+  const invitingDoc = firebase.collection("usuários").doc(notification.from);
+  const userNotification = userDoc.collection("notifications").doc(notification.id);
+
+  if (answer) {
+    const invitingFriendRef = invitingDoc.collection("friends").doc(userDoc.id);
+    await invitingFriendRef.set({
+      "id": userDoc.id,
+      "created_at": admin.firestore.FieldValue.serverTimestamp(),
+    });
+    const userFriendRef = userDoc.collection("friends").doc(invitingDoc.id);
+    await userFriendRef.set({
+      "id": invitingDoc.id,
+      "created_at": admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+  await userNotification.update({
+    "status": answer ? "FRIEND_REQUEST_ACCEPTED" : "FRIEND_REQUEST_REFUSED",
+    "updated_at": admin.firestore.FieldValue.serverTimestamp(),
+  });
+  let notRef = invitingDoc.collection("notifications").doc();
+  await notRef.set({
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    id: notRef.id,
+    type: "FRIEND_REQUEST_ANSWER",
+    title: "Resposta do convite",
+    content: `${(await userDoc.get()).get("nome")} ${answer ? "aceitou" : "recusou"} o seu pedido de amizade.`,
+    from: userDoc.id,
+    to: invitingDoc.id,
+    visualized: false,
+    status: answer ? "FRIEND_REQUEST_ACCEPTED" : "FRIEND_REQUEST_REFUSED",
+  });
+});
+
+// Rota para incrementar nos créditos do usuário o valor passado
+route.post("/earnReward", async (req, res) => {
+  await firebase
+    .collection("usuários")
+    .doc(req.body.userId)
+    .update({
+      credit: admin.firestore.FieldValue.increment(req.body.value),
+    });
+});
+
+// Rota para criar uma sessão com um amigo
+// body = [userId, friendId]
+route.post("/createSection", async (req, res) => {
+  let userDoc = await firebase.collection("usuários").doc(req.body.userId).get();
+  let friendDoc = await firebase.collection("usuários").doc(req.body.friendId).get();
+  let sectionRef = firebase
+    .collection("sections")
+    .doc();
+  let sectionData = {
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+    id: sectionRef.id,
+    admin_id: userDoc,
+    admin_name: userDoc.get("nome"),
+    invited_id: friendDoc.get("id"),
+    invited_name: userDoc.get("nome"),
+  };
+  await sectionRef.set(sectionData);
+  await userDoc.ref.update({ current_section_id: sectionRef.id });
+  await userDoc.ref.update({ current_section_id: sectionRef.id });
+  res.status(200).send(sectionData);
 });
 
 module.exports = route;
