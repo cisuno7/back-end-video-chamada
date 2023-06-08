@@ -302,4 +302,26 @@ route.post("/earnReward", async (req, res) => {
     });
 });
 
+// Rota para criar uma sessão com um amigo
+// body = [userId, friendId]
+route.post("/createSection", async (req, res) => {
+  let userDoc = await firebase.collection("usuários").doc(req.body.userId).get();
+  let friendDoc = await firebase.collection("usuários").doc(req.body.friendId).get();
+  let sectionRef = firebase
+    .collection("sections")
+    .doc();
+  let sectionData = {
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+    id: sectionRef.id,
+    admin_id: userDoc,
+    admin_name: userDoc.get("nome"),
+    invited_id: friendDoc.get("id"),
+    invited_name: userDoc.get("nome"),
+  };
+  await sectionRef.set(sectionData);
+  await userDoc.ref.update({ current_section_id: sectionRef.id });
+  await userDoc.ref.update({ current_section_id: sectionRef.id });
+  res.status(200).send(sectionData);
+});
+
 module.exports = route;
