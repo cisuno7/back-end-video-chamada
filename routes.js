@@ -29,31 +29,32 @@ route.get('/users', (req, res) => {
 });
 
 //rota para listar os amigos adicionados
-route.get('/listfriends', (req, res) => {
+route.get('/listfriends/:userId', (req, res) => {
+  const { userId } = req.params;
+
   firebase
     .collection('usuários')
+    .doc(userId)
     .get()
-    .then((snapshot) => {
-      const friendsList = [];
+    .then((doc) => {
+      if (!doc.exists) {
+        return res.status(404).send('Usuário não encontrado');
+      }
 
-      snapshot.forEach((doc) => {
-        const userData = doc.data();
-        const friends = userData.friends || [];
-        const userId = doc.id;
+      const userData = doc.data();
+      const friends = userData.friends || [];
 
-        friendsList.push({
-          id: userId,
-          friends: friends
-        });
+      res.status(200).json({
+        id: doc.id,
+        friends: friends
       });
-
-      res.status(200).json(friendsList);
     })
     .catch((error) => {
       console.error(error);
       res.status(500).send('Erro ao listar amigos');
     });
 });
+
 
 
 
