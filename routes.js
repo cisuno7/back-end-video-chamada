@@ -56,6 +56,34 @@ route.get('/listfriends/:userId', (req, res) => {
 });
 
 
+// Rota para obter um campo específico do usuário
+route.get('/idusers/:userId', (req, res) => {
+  const { userId } = req.params;
+
+  firebase
+    .collection('usuários')
+    .doc(userId)
+    .get()
+    .then((doc) => {
+      if (!doc.exists) {
+        return res.status(404).send('Usuário não encontrado');
+      }
+
+      const userData = doc.data();
+      const nome = userData.nome; // Aqui nós pegamos o campo específico
+
+      res.status(200).json({
+        nome: nome,
+      });
+    })
+    .catch((error) => {
+      console.error(error);
+      res.status(500).send('Erro ao recuperar o campo específico');
+    });
+});
+
+
+
 
 
 // Rota para listar notificações 
