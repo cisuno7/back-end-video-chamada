@@ -95,12 +95,9 @@ route.post("/notifications", async (req, res) => {
 
 // Rota para limpar notificações visuzalizadas
 route.post("/clearNewNotifications", async (req, res) => {
-  console.log("clearNewNotifications");
-  firebase
-    .collection('usuários')
-    .doc(req.body.userId)
-    .collection("notifications")
-    .where("visualized", "==", false)
+  let userRef = firebase.collection('usuários').doc(req.body.userId);
+  userRef.update({ new_notifications: 0 });
+  userRef.collection("notifications").where("visualized", "==", false)
     .get().then((snapshot) => {
       snapshot.forEach((doc) => {
         doc.ref.update({ visualized: true });
