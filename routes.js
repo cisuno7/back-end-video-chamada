@@ -113,7 +113,7 @@ route.post("/clearNewNotifications", async (req, res) => {
 
 // Rota para criar um usuário
 route.post('/users', async (req, res) => {
-  const { username, email, password } = req.body;
+  const { username, email, password, phrase } = req.body;
 
   if (!username || !email || !password || typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
     res.status(400).send('Dados inválidos');
@@ -127,6 +127,8 @@ route.post('/users', async (req, res) => {
     "photo": "",
     "new_notifications": 0,
     "credit": 0,
+    "favorite_phrase": phrase,
+    "current_section_id": null,
   })
     .then((doc) => {
       doc.update({ "id": doc.id });
