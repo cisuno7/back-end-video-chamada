@@ -170,6 +170,7 @@ route.post('/auth', async (req, res, next) => {
   }
 });
 
+// Salva a foto do usuário no banco
 route.post('/upload', (req, res) => {
 
   if (!req.files.photo || !req.files.photo.data) {
@@ -341,3 +342,18 @@ route.post("/createSection", async (req, res) => {
 });
 
 module.exports = route;
+
+// Functions created:
+// /users => Rota para listar todos os usuários
+// /listFriends/:userId => rota para listar todos os amigos
+// /listFriends/:userId/filter/:filter => rota para buscar amigos filtrados
+// /notifications => Rota para listar notificações
+// /clearNotifications => Rota para limpar notificações visuzalizadas
+// /users => Rota para criar um usuário
+// /auth => Rota para autenticar um usuário
+// /upload => Salva a foto do usuário no banco
+// /addFriend => Rota para adicionar amigo ao usuário logado
+// /inviteFriend Rota para covidar amigo para um jogo
+// /answerFriendRequest => Responder à uma solicitação de amizade
+// /earnReward => Rota para incrementar nos créditos do usuário o valor passado
+// /createSection => Rota para criar uma sessão com um amigo
