@@ -291,6 +291,98 @@ route.post("/answerFriendRequest", async (req, res) => {
   });
 });
 
+// Rota para covidar amigo para um jogo 
+// body = [userId, friendId]
+route.post('/inviteFriend', async (req, res) => {
+  const friendId = req.body.friendId;
+  const userId = req.body.userId;
+
+  let userDoc = await firebase.collection("usuários").doc(userId).get();
+  let friendDoc = await firebase.collection("usuários").doc(friendId).get();
+  let notRef = friendDoc.ref.collection("notifications").doc();
+
+  await notRef.set({
+    id: notRef.id,
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    type: "GAME_INVITE",
+    title: "Convite",
+    content: `${userDoc.get("nome")} está te chamado para jogar, você aceita?`,
+    from: userDoc.id,
+    to: friendId,
+    visualized: false,
+    status: "WAITING_ANSWER",
+  }).then(() => {
+    friendDoc.ref.update({ new_notifications: admin.firestore.FieldValue.increment(1) });
+    res.status(200).send(`Convite de amizade enviado para ${friendDoc.get("nome")}.`);
+  }).catch((error) => res.status(500).send('Erro ao adicionar o amigo.'));
+});
+
+// Responder a um convite de jogo 
+// body = [notification, answer]
+route.post("/answerGameInvite", async (req, res) => {
+  let notification = req.body.notification;
+  let answer = req.body.answer
+
+  const toRef = firebase.collection("usuários").doc(notification.to);
+  const fromRef = firebase.collection("usuários").doc(notification.from);
+  const notificationRef = toRef.collection("notifications").doc(notification.id);
+
+  await notificationRef.update({
+    "status": answer ? "GAME_INVITE_ACCEPTED" : "GAME_INVITE_REFUSED",
+    "updated_at": admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  let notRef = fromRef.collection("notifications").doc();
+
+  await notRef.set({
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    id: notRef.id,
+    type: "GAME_INVITE_ANSWER",
+    title: "Resposta do convite",
+    content: `${(await toRef.get()).get("nome")} ${answer ? "aceitou" : "recusou"} o seu convite de jogo.`,
+    from: toRef.id,
+    to: fromRef.id,
+    visualized: false,
+    status: answer ? "GAME_INVITE_ACCEPTED" : "GAME_INVITE_REFUSED",
+  }).then(async (result) => {
+    await fromRef.update({ new_notifications: admin.firestore.FieldValue.increment(1) });
+  });
+
+  if (answer) {
+    let sectionRef = firebase
+      .collection("sections")
+      .doc();
+    let sectionData = {
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      id: sectionRef.id,
+      admin_id: fromRef.id,
+      admin_name: (await fromRef.get()).get("nome"),
+      invited_id: toRef.id,
+      invited_name: (await toRef.get()).get("nome"),
+      status: "IN_PROGRESS",
+    };
+    await sectionRef.set(sectionData);
+    await toRef.update({ current_section_id: sectionRef.id });
+    await fromRef.update({ current_section_id: sectionRef.id });
+    res.status(200).json(sectionData);
+  }
+});
+
+//Rota para finalizar uma sessão
+// body = [sectionId]
+route.post("/endSection", async (req, res) => {
+  let sectionDoc = await firebase.collection("sections").doc(req.body.sectionId).get();
+  await sectionDoc.ref.update({
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    status: "FINISHED",
+  });
+  await firebase.collection("usuários").doc(sectionDoc.get("admin_id")).update({ current_section_id: null });
+  await firebase.collection("usuários").doc(sectionDoc.get("invited_id")).update({ current_section_id: null });
+});
+
 // Rota para incrementar nos créditos do usuário o valor passado
 route.post("/earnReward", async (req, res) => {
   await firebase
