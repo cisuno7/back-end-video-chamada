@@ -198,7 +198,7 @@ route.post('/upload', (req, res) => {
 
 // Rota para adicionar amigo ao usuário logado 
 // body = [userId, friendId, nome]
-route.post('/addFriend', (req, res) => {
+route.post('/addFriend', async (req, res) => {
   const friendName = req.body.nome;
   const friendId = req.body.friendId; // Obtém o ID do usuário logado da variável de solicitação
   const userId = req.body.userId;
@@ -208,65 +208,47 @@ route.post('/addFriend', (req, res) => {
     return;
   }
 
-  // Verificar se o usuário logado existe
-  firebase
-    .collection('usuários')
-    .doc(userId)
-    .get()
-    .then((doc) => {
-      if (!doc.exists) {
-        res.status(404).send('Usuário logado não encontrado.');
-        return;
-      }
+  let doc = await firebase.collection("usuários").doc(friendId).get();
 
-      const userData = doc.data();
-      const friends = userData.friends || [];
+  if (!doc.exists) {
+    res.status(404).send('Usuário logado não encontrado.');
+    return;
+  }
 
-      // Verificar se o amigo já está na lista de amigos
-      if (friends.includes(friendName)) {
-        res.status(400).send('O amigo já está na lista de amigos.');
-        return;
-      }
+  let friendDoc = await doc.ref.collection("friends").doc(friendId).get();
 
-      // Adicionar o amigo à lista de amigos
-      friends.push(friendName);
+  // Verificar se o amigo já está na lista de amigos
+  if (friendDoc.exists) {
+    res.status(400).send('O amigo já está na lista de amigos.');
+    return;
+  }
 
-      // Atualizar os dados do usuário logado no banco de dados
-      doc
-        .ref
-        .update({ friends: friends })
-        .then(() => {
+  let userData = (await firebase.collection("usuários").doc(userId).get()).data();
 
-          let notRef = firebase
-            .collection("usuários")
-            .doc(friendId)
-            .collection("notifications").doc();
+  let notRef = doc.ref.collection("notifications").doc();
 
-          notRef.set({
-            id: notRef.id,
-            created_at: admin.firestore.FieldValue.serverTimestamp(),
-            updated_at: admin.firestore.FieldValue.serverTimestamp(),
-            type: "FRIEND_REQUEST",
-            title: "Convite",
-            content: `${userData["nome"]} quer ser seu amigo, você aceita?`,
-            from: userData["id"],
-            to: friendId,
-            visualized: false,
-            status: "WAITING_ANSWER",
-          });
-          res.status(200).send(`Convite de amizade enviado para ${friendName}.`);
-        })
-        .catch((error) => {
-          console.error(error);
-          res.status(500).send('Erro ao adicionar o amigo.');
-        });
-    })
-    .catch((error) => {
-      console.error(error);
-      res.status(500).send('Erro ao buscar usuário logado.');
-    });
+  // console.log(`${notRef.id}`);
+
+  await notRef.set({
+    id: notRef.id,
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    type: "FRIEND_REQUEST",
+    title: "Convite",
+    content: `${userData["nome"]} quer ser seu amigo, você aceita?`,
+    from: userData["id"],
+    to: friendId,
+    visualized: false,
+    status: "WAITING_ANSWER",
+  }).then((result) => {
+    doc.ref.update({ new_notifications: admin.firestore.FieldValue.increment(1) });
+    res.status(200).send(`Convite de amizade enviado para ${friendName}.`);
+  }).catch((error) => {
+    console.error(error);
+    res.status(500).send('Erro ao adicionar o amigo.');
+  });
 });
-
+// Responder à uma solicitação de amizade 
 // body = [notification, answer]
 route.post("/answerFriendRequest", async (req, res) => {
   let notification = req.body.notification;
