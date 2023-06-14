@@ -28,63 +28,51 @@ route.get('/users', (req, res) => {
     });
 });
 
-//rota para listar os amigos adicionados
-route.get('/listfriends/:userId', (req, res) => {
-  const { userId } = req.params;
-
-  firebase
-    .collection('usuários')
-    .doc(userId)
-    .get()
-    .then((doc) => {
-      if (!doc.exists) {
-        return res.status(404).send('Usuário não encontrado');
+//rota para listar todos os amigos
+route.get('/listFriends/:userId', async (req, res) => {
+  // res.status(200).json([{ friendsData: "friendData" }]);
+  // console.log(req.params);
+  firebase.collection("usuários").doc(req.params.userId).collection("friends")
+    .get().then(async (query) => {
+      // console.log(query.docs);
+      let friendsData = [];
+      for (let doc of query.docs) {
+        let data = (await firebase.collection("usuários").doc(doc.id).get()).data();
+        friendsData.push(data);
       }
-
-      const userData = doc.data();
-      const friends = userData.friends || [];
-
-      res.status(200).json({
-        id: doc.id,
-        friends: friends
-      });
-    })
-    .catch((error) => {
-      console.error(error);
-      res.status(500).send('Erro ao listar amigos');
-    });
+      // console.log(friendsData);
+      res.status(200).json(friendsData);
+    }).catch((error) =>
+      res.status(500).send('Erro ao listar amigos')
+    );
 });
 
-
-// Rota para obter um campo específico do usuário
-route.get('/idusers/:userId', (req, res) => {
-  const { userId } = req.params;
-
-  firebase
-    .collection('usuários')
-    .doc(userId)
-    .get()
-    .then((doc) => {
-      if (!doc.exists) {
-        return res.status(404).send('Usuário não encontrado');
-      }
-
-      const userData = doc.data();
-      const nome = userData.nome; // Aqui nós pegamos o campo específico
-
-      res.status(200).json({
-        nome: nome,
-      });
-    })
-    .catch((error) => {
-      console.error(error);
-      res.status(500).send('Erro ao recuperar o campo específico');
-    });
+//rota para limpar todos os usuários
+route.get('/clearUsers', async (req, res) => {
+  let usersQuery = await firebase.collection("usuários").get();
+  for (let doc of usersQuery.docs) {
+    doc.ref.delete();
+  }
 });
 
-
-
-
+//rota para buscar amigos filtrados
+route.get('/listFriends/:userId/filter/:filter', (req, res) => {
+  firebase.collection("usuários")
+    .doc(req.params.userId)
+    .collection("friends")
+    .where("nome", "array-contains", req.params.filter)
+    .orderBy("nome")
+    .get().then(async (query) => {
+      let friendsData = [];
+      for (let doc of query.docs) {
+        let docUser = await firebase.collection("usuários").doc(doc.id).get();
+        friendsData.push(docUser);
+      }
+      res.status(200).json(friendsData);
+    }).catch((error) =>
+      res.status(500).send('Erro ao listar amigos')
+    );
+});
 
 // Rota para listar notificações 
 route.post("/notifications", async (req, res) => {
