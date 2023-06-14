@@ -28,63 +28,51 @@ route.get('/users', (req, res) => {
     });
 });
 
-//rota para listar os amigos adicionados
-route.get('/listfriends/:userId', (req, res) => {
-  const { userId } = req.params;
-
-  firebase
-    .collection('usuários')
-    .doc(userId)
-    .get()
-    .then((doc) => {
-      if (!doc.exists) {
-        return res.status(404).send('Usuário não encontrado');
+//rota para listar todos os amigos
+route.get('/listFriends/:userId', async (req, res) => {
+  // res.status(200).json([{ friendsData: "friendData" }]);
+  // console.log(req.params);
+  firebase.collection("usuários").doc(req.params.userId).collection("friends")
+    .get().then(async (query) => {
+      // console.log(query.docs);
+      let friendsData = [];
+      for (let doc of query.docs) {
+        let data = (await firebase.collection("usuários").doc(doc.id).get()).data();
+        friendsData.push(data);
       }
-
-      const userData = doc.data();
-      const friends = userData.friends || [];
-
-      res.status(200).json({
-        id: doc.id,
-        friends: friends
-      });
-    })
-    .catch((error) => {
-      console.error(error);
-      res.status(500).send('Erro ao listar amigos');
-    });
+      // console.log(friendsData);
+      res.status(200).json(friendsData);
+    }).catch((error) =>
+      res.status(500).send('Erro ao listar amigos')
+    );
 });
 
-
-// Rota para obter um campo específico do usuário
-route.get('/idusers/:userId', (req, res) => {
-  const { userId } = req.params;
-
-  firebase
-    .collection('usuários')
-    .doc(userId)
-    .get()
-    .then((doc) => {
-      if (!doc.exists) {
-        return res.status(404).send('Usuário não encontrado');
-      }
-
-      const userData = doc.data();
-      const nome = userData.nome; // Aqui nós pegamos o campo específico
-
-      res.status(200).json({
-        nome: nome,
-      });
-    })
-    .catch((error) => {
-      console.error(error);
-      res.status(500).send('Erro ao recuperar o campo específico');
-    });
+//rota para limpar todos os usuários
+route.get('/clearUsers', async (req, res) => {
+  let usersQuery = await firebase.collection("usuários").get();
+  for (let doc of usersQuery.docs) {
+    doc.ref.delete();
+  }
 });
 
-
-
-
+//rota para buscar amigos filtrados
+route.get('/listFriends/:userId/filter/:filter', (req, res) => {
+  firebase.collection("usuários")
+    .doc(req.params.userId)
+    .collection("friends")
+    .where("nome", "array-contains", req.params.filter)
+    .orderBy("nome")
+    .get().then(async (query) => {
+      let friendsData = [];
+      for (let doc of query.docs) {
+        let docUser = await firebase.collection("usuários").doc(doc.id).get();
+        friendsData.push(docUser);
+      }
+      res.status(200).json(friendsData);
+    }).catch((error) =>
+      res.status(500).send('Erro ao listar amigos')
+    );
+});
 
 // Rota para listar notificações 
 route.post("/notifications", async (req, res) => {
@@ -107,12 +95,9 @@ route.post("/notifications", async (req, res) => {
 
 // Rota para limpar notificações visuzalizadas
 route.post("/clearNewNotifications", async (req, res) => {
-  console.log("clearNewNotifications");
-  firebase
-    .collection('usuários')
-    .doc(req.body.userId)
-    .collection("notifications")
-    .where("visualized", "==", false)
+  let userRef = firebase.collection('usuários').doc(req.body.userId);
+  userRef.update({ new_notifications: 0 });
+  userRef.collection("notifications").where("visualized", "==", false)
     .get().then((snapshot) => {
       snapshot.forEach((doc) => {
         doc.ref.update({ visualized: true });
@@ -128,7 +113,7 @@ route.post("/clearNewNotifications", async (req, res) => {
 
 // Rota para criar um usuário
 route.post('/users', async (req, res) => {
-  const { username, email, password } = req.body;
+  const { username, email, password, phrase } = req.body;
 
   if (!username || !email || !password || typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
     res.status(400).send('Dados inválidos');
@@ -142,6 +127,8 @@ route.post('/users', async (req, res) => {
     "photo": "",
     "new_notifications": 0,
     "credit": 0,
+    "favorite_phrase": phrase,
+    "current_section_id": null,
   })
     .then((doc) => {
       doc.update({ "id": doc.id });
@@ -183,6 +170,7 @@ route.post('/auth', async (req, res, next) => {
   }
 });
 
+// Salva a foto do usuário no banco
 route.post('/upload', (req, res) => {
 
   if (!req.files.photo || !req.files.photo.data) {
@@ -210,7 +198,7 @@ route.post('/upload', (req, res) => {
 
 // Rota para adicionar amigo ao usuário logado 
 // body = [userId, friendId, nome]
-route.post('/addFriend', (req, res) => {
+route.post('/addFriend', async (req, res) => {
   const friendName = req.body.nome;
   const friendId = req.body.friendId; // Obtém o ID do usuário logado da variável de solicitação
   const userId = req.body.userId;
@@ -220,65 +208,47 @@ route.post('/addFriend', (req, res) => {
     return;
   }
 
-  // Verificar se o usuário logado existe
-  firebase
-    .collection('usuários')
-    .doc(userId)
-    .get()
-    .then((doc) => {
-      if (!doc.exists) {
-        res.status(404).send('Usuário logado não encontrado.');
-        return;
-      }
+  let doc = await firebase.collection("usuários").doc(friendId).get();
 
-      const userData = doc.data();
-      const friends = userData.friends || [];
+  if (!doc.exists) {
+    res.status(404).send('Usuário logado não encontrado.');
+    return;
+  }
 
-      // Verificar se o amigo já está na lista de amigos
-      if (friends.includes(friendName)) {
-        res.status(400).send('O amigo já está na lista de amigos.');
-        return;
-      }
+  let friendDoc = await doc.ref.collection("friends").doc(friendId).get();
 
-      // Adicionar o amigo à lista de amigos
-      friends.push(friendName);
+  // Verificar se o amigo já está na lista de amigos
+  if (friendDoc.exists) {
+    res.status(400).send('O amigo já está na lista de amigos.');
+    return;
+  }
 
-      // Atualizar os dados do usuário logado no banco de dados
-      doc
-        .ref
-        .update({ friends: friends })
-        .then(() => {
+  let userData = (await firebase.collection("usuários").doc(userId).get()).data();
 
-          let notRef = firebase
-            .collection("usuários")
-            .doc(friendId)
-            .collection("notifications").doc();
+  let notRef = doc.ref.collection("notifications").doc();
 
-          notRef.set({
-            id: notRef.id,
-            created_at: admin.firestore.FieldValue.serverTimestamp(),
-            updated_at: admin.firestore.FieldValue.serverTimestamp(),
-            type: "FRIEND_REQUEST",
-            title: "Convite",
-            content: `${userData["nome"]} quer ser seu amigo, você aceita?`,
-            from: userData["id"],
-            to: friendId,
-            visualized: false,
-            status: "WAITING_ANSWER",
-          });
-          res.status(200).send(`Convite de amizade enviado para ${friendName}.`);
-        })
-        .catch((error) => {
-          console.error(error);
-          res.status(500).send('Erro ao adicionar o amigo.');
-        });
-    })
-    .catch((error) => {
-      console.error(error);
-      res.status(500).send('Erro ao buscar usuário logado.');
-    });
+  // console.log(`${notRef.id}`);
+
+  await notRef.set({
+    id: notRef.id,
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    type: "FRIEND_REQUEST",
+    title: "Convite",
+    content: `${userData["nome"]} quer ser seu amigo, você aceita?`,
+    from: userData["id"],
+    to: friendId,
+    visualized: false,
+    status: "WAITING_ANSWER",
+  }).then((result) => {
+    doc.ref.update({ new_notifications: admin.firestore.FieldValue.increment(1) });
+    res.status(200).send(`Convite de amizade enviado para ${friendName}.`);
+  }).catch((error) => {
+    console.error(error);
+    res.status(500).send('Erro ao adicionar o amigo.');
+  });
 });
-
+// Responder à uma solicitação de amizade 
 // body = [notification, answer]
 route.post("/answerFriendRequest", async (req, res) => {
   let notification = req.body.notification;
@@ -321,6 +291,98 @@ route.post("/answerFriendRequest", async (req, res) => {
   });
 });
 
+// Rota para covidar amigo para um jogo 
+// body = [userId, friendId]
+route.post('/inviteFriend', async (req, res) => {
+  const friendId = req.body.friendId;
+  const userId = req.body.userId;
+
+  let userDoc = await firebase.collection("usuários").doc(userId).get();
+  let friendDoc = await firebase.collection("usuários").doc(friendId).get();
+  let notRef = friendDoc.ref.collection("notifications").doc();
+
+  await notRef.set({
+    id: notRef.id,
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    type: "GAME_INVITE",
+    title: "Convite",
+    content: `${userDoc.get("nome")} está te chamado para jogar, você aceita?`,
+    from: userDoc.id,
+    to: friendId,
+    visualized: false,
+    status: "WAITING_ANSWER",
+  }).then(() => {
+    friendDoc.ref.update({ new_notifications: admin.firestore.FieldValue.increment(1) });
+    res.status(200).send(`Convite de amizade enviado para ${friendDoc.get("nome")}.`);
+  }).catch((error) => res.status(500).send('Erro ao adicionar o amigo.'));
+});
+
+// Responder a um convite de jogo 
+// body = [notification, answer]
+route.post("/answerGameInvite", async (req, res) => {
+  let notification = req.body.notification;
+  let answer = req.body.answer
+
+  const toRef = firebase.collection("usuários").doc(notification.to);
+  const fromRef = firebase.collection("usuários").doc(notification.from);
+  const notificationRef = toRef.collection("notifications").doc(notification.id);
+
+  await notificationRef.update({
+    "status": answer ? "GAME_INVITE_ACCEPTED" : "GAME_INVITE_REFUSED",
+    "updated_at": admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  let notRef = fromRef.collection("notifications").doc();
+
+  await notRef.set({
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    id: notRef.id,
+    type: "GAME_INVITE_ANSWER",
+    title: "Resposta do convite",
+    content: `${(await toRef.get()).get("nome")} ${answer ? "aceitou" : "recusou"} o seu convite de jogo.`,
+    from: toRef.id,
+    to: fromRef.id,
+    visualized: false,
+    status: answer ? "GAME_INVITE_ACCEPTED" : "GAME_INVITE_REFUSED",
+  }).then(async (result) => {
+    await fromRef.update({ new_notifications: admin.firestore.FieldValue.increment(1) });
+  });
+
+  if (answer) {
+    let sectionRef = firebase
+      .collection("sections")
+      .doc();
+    let sectionData = {
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      id: sectionRef.id,
+      admin_id: fromRef.id,
+      admin_name: (await fromRef.get()).get("nome"),
+      invited_id: toRef.id,
+      invited_name: (await toRef.get()).get("nome"),
+      status: "IN_PROGRESS",
+    };
+    await sectionRef.set(sectionData);
+    await toRef.update({ current_section_id: sectionRef.id });
+    await fromRef.update({ current_section_id: sectionRef.id });
+    res.status(200).json(sectionData);
+  }
+});
+
+//Rota para finalizar uma sessão
+// body = [sectionId]
+route.post("/endSection", async (req, res) => {
+  let sectionDoc = await firebase.collection("sections").doc(req.body.sectionId).get();
+  await sectionDoc.ref.update({
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    status: "FINISHED",
+  });
+  await firebase.collection("usuários").doc(sectionDoc.get("admin_id")).update({ current_section_id: null });
+  await firebase.collection("usuários").doc(sectionDoc.get("invited_id")).update({ current_section_id: null });
+});
+
 // Rota para incrementar nos créditos do usuário o valor passado
 route.post("/earnReward", async (req, res) => {
   await firebase
@@ -354,3 +416,18 @@ route.post("/createSection", async (req, res) => {
 });
 
 module.exports = route;
+
+// Functions created:
+// /users => Rota para listar todos os usuários
+// /listFriends/:userId => rota para listar todos os amigos
+// /listFriends/:userId/filter/:filter => rota para buscar amigos filtrados
+// /notifications => Rota para listar notificações
+// /clearNotifications => Rota para limpar notificações visuzalizadas
+// /users => Rota para criar um usuário
+// /auth => Rota para autenticar um usuário
+// /upload => Salva a foto do usuário no banco
+// /addFriend => Rota para adicionar amigo ao usuário logado
+// /inviteFriend Rota para covidar amigo para um jogo
+// /answerFriendRequest => Responder à uma solicitação de amizade
+// /earnReward => Rota para incrementar nos créditos do usuário o valor passado
+// /createSection => Rota para criar uma sessão com um amigo
