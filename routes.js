@@ -28,34 +28,51 @@ route.get('/users', (req, res) => {
     });
 });
 
-//rota para listar os amigos adicionados
-route.get('/listfriends', (req, res) => {
-  firebase
-    .collection('usuários')
-    .get()
-    .then((snapshot) => {
-      const friendsList = [];
-
-      snapshot.forEach((doc) => {
-        const userData = doc.data();
-        const friends = userData.friends || [];
-        const userId = doc.id;
-
-        friendsList.push({
-          id: userId,
-          friends: friends
-        });
-      });
-
-      res.status(200).json(friendsList);
-    })
-    .catch((error) => {
-      console.error(error);
-      res.status(500).send('Erro ao listar amigos');
-    });
+//rota para listar todos os amigos
+route.get('/listFriends/:userId', async (req, res) => {
+  // res.status(200).json([{ friendsData: "friendData" }]);
+  // console.log(req.params);
+  firebase.collection("usuários").doc(req.params.userId).collection("friends")
+    .get().then(async (query) => {
+      // console.log(query.docs);
+      let friendsData = [];
+      for (let doc of query.docs) {
+        let data = (await firebase.collection("usuários").doc(doc.id).get()).data();
+        friendsData.push(data);
+      }
+      // console.log(friendsData);
+      res.status(200).json(friendsData);
+    }).catch((error) =>
+      res.status(500).send('Erro ao listar amigos')
+    );
 });
 
+//rota para limpar todos os usuários
+route.get('/clearUsers', async (req, res) => {
+  let usersQuery = await firebase.collection("usuários").get();
+  for (let doc of usersQuery.docs) {
+    doc.ref.delete();
+  }
+});
 
+//rota para buscar amigos filtrados
+route.get('/listFriends/:userId/filter/:filter', (req, res) => {
+  firebase.collection("usuários")
+    .doc(req.params.userId)
+    .collection("friends")
+    .where("nome", "array-contains", req.params.filter)
+    .orderBy("nome")
+    .get().then(async (query) => {
+      let friendsData = [];
+      for (let doc of query.docs) {
+        let docUser = await firebase.collection("usuários").doc(doc.id).get();
+        friendsData.push(docUser);
+      }
+      res.status(200).json(friendsData);
+    }).catch((error) =>
+      res.status(500).send('Erro ao listar amigos')
+    );
+});
 
 // Rota para listar notificações 
 route.post("/notifications", async (req, res) => {
