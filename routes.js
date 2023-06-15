@@ -360,8 +360,12 @@ route.post("/answerGameInvite", async (req, res) => {
       id: sectionRef.id,
       admin_id: fromRef.id,
       admin_name: (await fromRef.get()).get("nome"),
+      admin_player: "X",
       invited_id: toRef.id,
       invited_name: (await toRef.get()).get("nome"),
+      invited_player: "O",
+      player_turn: fromRef.id,
+      allow_rematch: false,
       status: "IN_PROGRESS",
     };
     await sectionRef.set(sectionData);
