@@ -167,6 +167,34 @@ route.post('/users', async (req, res) => {
     });
 });
 
+//Rota para atualizar o usuario
+route.put('/users/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const { username, email, password, phrase } = req.body;
+
+  if (!username || !email || !password || typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
+    res.status(400).send('Dados inválidos');
+    return;
+  }
+
+  await firebase.collection('usuários').doc(userId).update({
+    "nome": username,
+    "senha": password,
+    "email": email,
+    "favorite_phrase": phrase,
+  })
+    .then(() => {
+      res.status(200).send(`Usuário ${username} atualizado com sucesso.`);
+    })
+    .catch((error) => {
+      console.error(error);
+      res.status(500).send('Erro ao atualizar usuário');
+    });
+});
+
+
+
+
 
 // Rota para autenticar um usuário
 route.post('/auth', async (req, res, next) => {
