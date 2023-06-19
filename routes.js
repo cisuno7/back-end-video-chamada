@@ -44,9 +44,10 @@ route.get('/idusers/:userId', (req, res) => {
 
       const userData = doc.data();
       const nome = userData.nome; // Aqui nós pegamos o campo específico
-
+      const favorite_phrase=userData.favorite_phrase
       res.status(200).json({
         nome: nome,
+        favorite_phrase:favorite_phrase,
       });
     })
     .catch((error) => {
