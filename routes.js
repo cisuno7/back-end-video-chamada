@@ -14,7 +14,7 @@ route.use(fileUpload());
 
 // Rota para listar todos os usuários
 route.get('/users', (req, res) => {
-  firebase.collection('usuários').get()
+  firebase.collection('users').get()
     .then((snapshot) => {
       const results = [];
       snapshot.forEach((doc) => {
@@ -34,7 +34,7 @@ route.get('/idusers/:userId', (req, res) => {
   const { userId } = req.params;
 
   firebase
-    .collection('usuários')
+    .collection('users')
     .doc(userId)
     .get()
     .then((doc) => {
@@ -44,10 +44,10 @@ route.get('/idusers/:userId', (req, res) => {
 
       const userData = doc.data();
       const nome = userData.nome; // Aqui nós pegamos o campo específico
-      const favorite_phrase=userData.favorite_phrase
+      const favorite_phrase = userData.favorite_phrase
       res.status(200).json({
         nome: nome,
-        favorite_phrase:favorite_phrase,
+        favorite_phrase: favorite_phrase,
       });
     })
     .catch((error) => {
@@ -60,12 +60,12 @@ route.get('/idusers/:userId', (req, res) => {
 route.get('/listFriends/:userId', async (req, res) => {
   // res.status(200).json([{ friendsData: "friendData" }]);
   // console.log(req.params);
-  firebase.collection("usuários").doc(req.params.userId).collection("friends")
+  firebase.collection("users").doc(req.params.userId).collection("friends")
     .get().then(async (query) => {
       // console.log(query.docs);
       let friendsData = [];
       for (let doc of query.docs) {
-        let data = (await firebase.collection("usuários").doc(doc.id).get()).data();
+        let data = (await firebase.collection("users").doc(doc.id).get()).data();
         friendsData.push(data);
       }
       // console.log(friendsData);
@@ -77,7 +77,7 @@ route.get('/listFriends/:userId', async (req, res) => {
 
 //rota para limpar todos os usuários
 route.get('/clearUsers', async (req, res) => {
-  let usersQuery = await firebase.collection("usuários").get();
+  let usersQuery = await firebase.collection("users").get();
   for (let doc of usersQuery.docs) {
     doc.ref.delete();
   }
@@ -85,15 +85,15 @@ route.get('/clearUsers', async (req, res) => {
 
 //rota para buscar amigos filtrados
 route.get('/listFriends/:userId/filter/:filter', (req, res) => {
-  firebase.collection("usuários")
+  firebase.collection("users")
     .doc(req.params.userId)
     .collection("friends")
-    .where("nome", "array-contains", req.params.filter)
-    .orderBy("nome")
+    .where("username", "array-contains", req.params.filter)
+    .orderBy("username")
     .get().then(async (query) => {
       let friendsData = [];
       for (let doc of query.docs) {
-        let docUser = await firebase.collection("usuários").doc(doc.id).get();
+        let docUser = await firebase.collection("users").doc(doc.id).get();
         friendsData.push(docUser);
       }
       res.status(200).json(friendsData);
@@ -105,7 +105,7 @@ route.get('/listFriends/:userId/filter/:filter', (req, res) => {
 // Rota para listar notificações 
 route.post("/notifications", async (req, res) => {
   firebase
-    .collection('usuários')
+    .collection('users')
     .doc(req.body.userId)
     .collection("notifications")
     .get().then((snapshot) => {
@@ -123,7 +123,7 @@ route.post("/notifications", async (req, res) => {
 
 // Rota para limpar notificações visuzalizadas
 route.post("/clearNewNotifications", async (req, res) => {
-  let userRef = firebase.collection('usuários').doc(req.body.userId);
+  let userRef = firebase.collection('users').doc(req.body.userId);
   userRef.update({ new_notifications: 0 });
   userRef.collection("notifications").where("visualized", "==", false)
     .get().then((snapshot) => {
@@ -140,26 +140,34 @@ route.post("/clearNewNotifications", async (req, res) => {
 
 
 // Rota para criar um usuário
-route.post('/users', async (req, res) => {
-  const { username, email, password, phrase } = req.body;
+route.post('/sign-up', async (req, res) => {
+  const { userId, username, email, phrase } = req.body;
 
-  if (!username || !email || !password || typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
+  if (!username || !email || typeof username !== 'string' || typeof email !== 'string') {
     res.status(400).send('Dados inválidos');
     return;
   }
 
-  await firebase.collection('usuários').add({
-    "nome": username,
-    "senha": password,
+  let userCol = await firebase.collection("users").where("email", "==", email).get();
+
+  if (!userCol.empty) {
+    res.status(401).send("Já existe uma conta com este email.");
+  }
+
+  let userRef = firebase.collection('users').doc(userId);
+  await userRef.set({
+    "id": userRef.id,
+    "username": username,
     "email": email,
     "photo": "",
     "new_notifications": 0,
     "credit": 0,
     "favorite_phrase": phrase,
     "current_section_id": null,
+    "current_game": null,
+    "status": "AWAITING_VALIDATE",
   })
-    .then((doc) => {
-      doc.update({ "id": doc.id });
+    .then((result) => {
       res.status(201).send(`Usuário ${username} criado com sucesso.`);
     })
     .catch((error) => {
@@ -198,27 +206,30 @@ route.put('/users/:userId', async (req, res) => {
 
 
 // Rota para autenticar um usuário
-route.post('/auth', async (req, res, next) => {
-  const { email, senha } = req.body;
+route.post('/sign-in', async (req, res, next) => {
+  const { email, userId } = req.body;
 
-  if (!email || !senha || typeof email !== 'string' || typeof senha !== 'string') {
-    res.status(400).send('Campos de email e senha são obrigatórios e devem ser strings.');
+  if (!email || typeof email !== 'string') {
+    res.status(400).send('Erro nos parâmetros.');
     return;
   }
 
   try {
-    const snapshot = await firebase
-      .collection('usuários')
-      .where('email', '==', email)
-      .where('senha', '==', senha)
+    const userDoc = await firebase
+      .collection('users')
+      .doc(userId)
       .get();
 
-    if (!snapshot.empty) {
-      const userId = snapshot.docs[0].id; // Obtém o ID do usuário logado
-      req.userId = userId; // Armazena o ID do usuário logado na variável de solicitação
+    if (userDoc.get("email") != email) {
+      res.status(401).send("Erro no email do usuário");
+    }
+
+    if (userDoc.exists) {
+
+      await userDoc.ref.update({ status: "OK" });
       res.status(200).json({ userId });
     } else {
-      res.status(401).send('Email ou senha incorretos.');
+      res.status(401).send('Usuário não encontrado.');
     }
   } catch (error) {
     console.error(error);
@@ -240,7 +251,7 @@ route.post('/upload', (req, res) => {
   const base64Photo = photoBuffer.toString('base64');
 
   // Salva a foto no banco de dados
-  firebase.collection('usuários').doc(req.body.userId).update({
+  firebase.collection('users').doc(req.body.userId).update({
     photo: base64Photo, // Salva a foto no campo 'photo'
   })
     .then(() => {
@@ -253,9 +264,9 @@ route.post('/upload', (req, res) => {
 });
 
 // Rota para adicionar amigo ao usuário logado 
-// body = [userId, friendId, nome]
+// body = [userId, friendId, username]
 route.post('/addFriend', async (req, res) => {
-  const friendName = req.body.nome;
+  const friendName = req.body.username;
   const friendId = req.body.friendId; // Obtém o ID do usuário logado da variável de solicitação
   const userId = req.body.userId;
 
@@ -264,7 +275,7 @@ route.post('/addFriend', async (req, res) => {
     return;
   }
 
-  let doc = await firebase.collection("usuários").doc(friendId).get();
+  let doc = await firebase.collection("users").doc(friendId).get();
 
   if (!doc.exists) {
     res.status(404).send('Usuário logado não encontrado.');
@@ -279,7 +290,7 @@ route.post('/addFriend', async (req, res) => {
     return;
   }
 
-  let userData = (await firebase.collection("usuários").doc(userId).get()).data();
+  let userData = (await firebase.collection("users").doc(userId).get()).data();
 
   let notRef = doc.ref.collection("notifications").doc();
 
@@ -291,7 +302,7 @@ route.post('/addFriend', async (req, res) => {
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
     type: "FRIEND_REQUEST",
     title: "Convite",
-    content: `${userData["nome"]} quer ser seu amigo, você aceita?`,
+    content: `${userData["username"]} quer ser seu amigo, você aceita?`,
     from: userData["id"],
     to: friendId,
     visualized: false,
@@ -312,8 +323,8 @@ route.post("/answerFriendRequest", async (req, res) => {
 
   // console.log(req.body);
 
-  const userDoc = firebase.collection("usuários").doc(notification.to);
-  const invitingDoc = firebase.collection("usuários").doc(notification.from);
+  const userDoc = firebase.collection("users").doc(notification.to);
+  const invitingDoc = firebase.collection("users").doc(notification.from);
   const userNotification = userDoc.collection("notifications").doc(notification.id);
 
   if (answer) {
@@ -339,7 +350,7 @@ route.post("/answerFriendRequest", async (req, res) => {
     id: notRef.id,
     type: "FRIEND_REQUEST_ANSWER",
     title: "Resposta do convite",
-    content: `${(await userDoc.get()).get("nome")} ${answer ? "aceitou" : "recusou"} o seu pedido de amizade.`,
+    content: `${(await userDoc.get()).get("username")} ${answer ? "aceitou" : "recusou"} o seu pedido de amizade.`,
     from: userDoc.id,
     to: invitingDoc.id,
     visualized: false,
@@ -348,13 +359,14 @@ route.post("/answerFriendRequest", async (req, res) => {
 });
 
 // Rota para covidar amigo para um jogo 
-// body = [userId, friendId]
+// body = [userId, friendId, game]
 route.post('/inviteFriend', async (req, res) => {
   const friendId = req.body.friendId;
   const userId = req.body.userId;
+  const game = req.body.game;
 
-  let userDoc = await firebase.collection("usuários").doc(userId).get();
-  let friendDoc = await firebase.collection("usuários").doc(friendId).get();
+  let userDoc = await firebase.collection("users").doc(userId).get();
+  let friendDoc = await firebase.collection("users").doc(friendId).get();
   let notRef = friendDoc.ref.collection("notifications").doc();
 
   await notRef.set({
@@ -363,14 +375,15 @@ route.post('/inviteFriend', async (req, res) => {
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
     type: "GAME_INVITE",
     title: "Convite",
-    content: `${userDoc.get("nome")} está te chamado para jogar, você aceita?`,
+    content: `${userDoc.get("username")} está te chamado para jogar ${game}, você aceita?`,
     from: userDoc.id,
     to: friendId,
     visualized: false,
     status: "WAITING_ANSWER",
+    game: game,
   }).then(() => {
     friendDoc.ref.update({ new_notifications: admin.firestore.FieldValue.increment(1) });
-    res.status(200).send(`Convite de amizade enviado para ${friendDoc.get("nome")}.`);
+    res.status(200).send(`Convite de amizade enviado para ${friendDoc.get("username")}.`);
   }).catch((error) => res.status(500).send('Erro ao adicionar o amigo.'));
 });
 
@@ -380,8 +393,8 @@ route.post("/answerGameInvite", async (req, res) => {
   let notification = req.body.notification;
   let answer = req.body.answer
 
-  const toRef = firebase.collection("usuários").doc(notification.to);
-  const fromRef = firebase.collection("usuários").doc(notification.from);
+  const toRef = firebase.collection("users").doc(notification.to);
+  const fromRef = firebase.collection("users").doc(notification.from);
   const notificationRef = toRef.collection("notifications").doc(notification.id);
 
   await notificationRef.update({
@@ -390,18 +403,18 @@ route.post("/answerGameInvite", async (req, res) => {
   });
 
   let notRef = fromRef.collection("notifications").doc();
-
   await notRef.set({
     created_at: admin.firestore.FieldValue.serverTimestamp(),
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
     id: notRef.id,
     type: "GAME_INVITE_ANSWER",
     title: "Resposta do convite",
-    content: `${(await toRef.get()).get("nome")} ${answer ? "aceitou" : "recusou"} o seu convite de jogo.`,
+    content: `${(await toRef.get()).get("username")} ${answer ? "aceitou" : "recusou"} o seu convite de jogo.`,
     from: toRef.id,
     to: fromRef.id,
     visualized: false,
     status: answer ? "GAME_INVITE_ACCEPTED" : "GAME_INVITE_REFUSED",
+    game: notification.game,
   }).then(async (result) => {
     await fromRef.update({ new_notifications: admin.firestore.FieldValue.increment(1) });
   });
@@ -411,18 +424,33 @@ route.post("/answerGameInvite", async (req, res) => {
       .collection("sections")
       .doc();
     let sectionData = {
-      created_at: admin.firestore.FieldValue.serverTimestamp(),
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      id: sectionRef.id,
       admin_id: fromRef.id,
-      admin_name: (await fromRef.get()).get("nome"),
+      admin_username: (await fromRef.get()).get("username"),
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      id: sectionRef.id,
       invited_id: toRef.id,
-      invited_name: (await toRef.get()).get("nome"),
+      invited_username: (await toRef.get()).get("username"),
+      game: notification.game,
+      allow_rematch: false,
+      player_turn: fromRef.id,
       status: "IN_PROGRESS",
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
     };
+    if (notification.game == "VELHA") {
+      sectionData.admin_player = "X"
+      sectionData.invited_player = "O"
+    } else if (notification.game == "DAMA") {
+      sectionData.admin_player = "1"
+      sectionData.invited_player = "2"
+      const board = [[0, 1, 0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0, 1, 0], [0, 1, 0, 1, 0, 1, 0, 1], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [2, 0, 2, 0, 2, 0, 2, 0], [0, 2, 0, 2, 0, 2, 0, 2], [2, 0, 2, 0, 2, 0, 2, 0]];
+      for (let line in board) {
+        let lineRef = sectionRef.collection("board").doc(line);
+        await lineRef.set({ value: board[line] });
+      }
+    }
     await sectionRef.set(sectionData);
-    await toRef.update({ current_section_id: sectionRef.id });
-    await fromRef.update({ current_section_id: sectionRef.id });
+    await toRef.update({ current_section_id: sectionRef.id, current_game: notification.game });
+    await fromRef.update({ current_section_id: sectionRef.id, current_game: notification.game });
     res.status(200).json(sectionData);
   }
 });
@@ -435,14 +463,14 @@ route.post("/endSection", async (req, res) => {
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
     status: "FINISHED",
   });
-  await firebase.collection("usuários").doc(sectionDoc.get("admin_id")).update({ current_section_id: null });
-  await firebase.collection("usuários").doc(sectionDoc.get("invited_id")).update({ current_section_id: null });
+  await firebase.collection("users").doc(sectionDoc.get("admin_id")).update({ current_section_id: null });
+  await firebase.collection("users").doc(sectionDoc.get("invited_id")).update({ current_section_id: null });
 });
 
 // Rota para incrementar nos créditos do usuário o valor passado
 route.post("/earnReward", async (req, res) => {
   await firebase
-    .collection("usuários")
+    .collection("users")
     .doc(req.body.userId)
     .update({
       credit: admin.firestore.FieldValue.increment(req.body.value),
@@ -452,8 +480,8 @@ route.post("/earnReward", async (req, res) => {
 // Rota para criar uma sessão com um amigo
 // body = [userId, friendId]
 route.post("/createSection", async (req, res) => {
-  let userDoc = await firebase.collection("usuários").doc(req.body.userId).get();
-  let friendDoc = await firebase.collection("usuários").doc(req.body.friendId).get();
+  let userDoc = await firebase.collection("users").doc(req.body.userId).get();
+  let friendDoc = await firebase.collection("users").doc(req.body.friendId).get();
   let sectionRef = firebase
     .collection("sections")
     .doc();
@@ -461,9 +489,9 @@ route.post("/createSection", async (req, res) => {
     created_at: admin.firestore.FieldValue.serverTimestamp(),
     id: sectionRef.id,
     admin_id: userDoc,
-    admin_name: userDoc.get("nome"),
+    admin_username: userDoc.get("username"),
     invited_id: friendDoc.get("id"),
-    invited_name: userDoc.get("nome"),
+    invited_username: userDoc.get("username"),
   };
   await sectionRef.set(sectionData);
   await userDoc.ref.update({ current_section_id: sectionRef.id });
