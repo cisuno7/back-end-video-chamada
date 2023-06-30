@@ -43,10 +43,10 @@ route.get('/idusers/:userId', (req, res) => {
       }
 
       const userData = doc.data();
-      const nome = userData.nome; // Aqui nós pegamos o campo específico
+      const username = userData.username; // Aqui nós pegamos o campo específico
       const favorite_phrase = userData.favorite_phrase
       res.status(200).json({
-        nome: nome,
+        username: username,
         favorite_phrase: favorite_phrase,
       });
     })
@@ -187,7 +187,7 @@ route.put('/users/:userId', async (req, res) => {
   }
 
   await firebase.collection('usuários').doc(userId).update({
-    "nome": username,
+    "username": username,
     "senha": password,
     "email": email,
     "favorite_phrase": phrase,
@@ -453,6 +453,18 @@ route.post("/answerGameInvite", async (req, res) => {
     await fromRef.update({ current_section_id: sectionRef.id, current_game: notification.game });
     res.status(200).json(sectionData);
   }
+});
+
+//Rota para finalizar um jogo
+// body = [sectionId, winnerId, looserId]
+route.post("/endGame", async (req, res) => {
+  let sectionDoc = await firebase.collection("sections").doc(req.body.sectionId).get();
+  await sectionDoc.ref.update({
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    status: "GAME-FINISHED",
+    winner_id: req.body.winnerId,
+    looser_id: req.body.looserId
+  });
 });
 
 //Rota para finalizar uma sessão
