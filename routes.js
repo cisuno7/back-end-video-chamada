@@ -477,6 +477,7 @@ route.post("/endSection", async (req, res) => {
   });
   await firebase.collection("users").doc(sectionDoc.get("admin_id")).update({ current_section_id: null });
   await firebase.collection("users").doc(sectionDoc.get("invited_id")).update({ current_section_id: null });
+  res.status(200).send("OK");
 });
 
 // Rota para incrementar nos créditos do usuário o valor passado
