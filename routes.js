@@ -186,7 +186,7 @@ route.put('/users/:userId', async (req, res) => {
     return;
   }
 
-  await firebase.collection('usuários').doc(userId).update({
+  await firebase.collection('users').doc(userId).update({
     "username": username,
     "senha": password,
     "email": email,
