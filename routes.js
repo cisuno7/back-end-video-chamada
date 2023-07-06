@@ -152,6 +152,7 @@ route.post('/sign-up', async (req, res) => {
 
   if (!userCol.empty) {
     res.status(401).send("Já existe uma conta com este email.");
+    return;
   }
 
   let userRef = firebase.collection('users').doc(userId);
@@ -166,9 +167,11 @@ route.post('/sign-up', async (req, res) => {
     "current_section_id": null,
     "current_game": null,
     "status": "AWAITING_VALIDATE",
+    "created_at": admin.firestore.FieldValue.serverTimestamp(),
   })
     .then((result) => {
       res.status(201).send(`Usuário ${username} criado com sucesso.`);
+      return;
     })
     .catch((error) => {
       console.error(error);
