@@ -179,6 +179,13 @@ route.post('/sign-up', async (req, res) => {
     });
 });
 
+// Atualizar usuário
+// body = [data]
+route.post("/user", async (req, res) => {
+  await firebase.collection("users").doc(req.body.data.id).update(req.body.data);
+  res.status(201).send("Usuário atualizado com sucesso");
+});
+
 //Rota para atualizar o usuario
 route.put('/users/:userId', async (req, res) => {
   const { userId } = req.params;
@@ -458,6 +465,63 @@ route.post("/answerGameInvite", async (req, res) => {
   }
 });
 
+// Função para partida com player aleatório
+// body = [userId, game]
+route.post("/newRandomGame", async (req, res) => {
+  const gamesQue = await firebase.collection("sections").where("status", "==", "SEARCHING").where("game", "==", req.body.game).orderBy("created_at").limit(1).get();
+  const userDoc = await firebase.collection("users").doc(req.body.userId).get();
+  const batch = firebase.batch();
+  if (gamesQue.size != 0) {
+    const section = gamesQue.docs[0];
+    batch.update(section.ref, {
+      invited_id: userDoc.id,
+      invited_username: userDoc.get("username"),
+      status: "IN_PROGRESS",
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    batch.update(userDoc.ref, {
+      current_game: req.body.game,
+      current_section_id: section.ref.id,
+    });
+    await batch.commit();
+    res.status(200).json(section.data());
+  } else {
+    let sectionRef = firebase
+      .collection("sections")
+      .doc();
+    let sectionData = {
+      admin_id: userDoc.id,
+      admin_username: userDoc.get("username"),
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      id: sectionRef.id,
+      invited_id: null,
+      invited_username: null,
+      game: req.body.game,
+      allow_rematch: false,
+      player_turn: userDoc.id,
+      status: "SEARCHING",
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    if (req.body.game == "VELHA") {
+      sectionData.admin_player = "X"
+      sectionData.invited_player = "O"
+    } else if (req.body.game == "DAMA") {
+      sectionData.admin_player = "1"
+      sectionData.invited_player = "2"
+      const board = [[0, 1, 0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0, 1, 0], [0, 1, 0, 1, 0, 1, 0, 1], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [2, 0, 2, 0, 2, 0, 2, 0], [0, 2, 0, 2, 0, 2, 0, 2], [2, 0, 2, 0, 2, 0, 2, 0]];
+      for (let line in board) {
+        let lineRef = sectionRef.collection("board").doc(line);
+        batch.set(lineRef, { value: board[line] });
+      }
+    }
+    batch.set(sectionRef, sectionData);
+    batch.update(userDoc.ref, { current_section_id: sectionRef.id, current_game: req.body.game });
+    await batch.commit();
+    res.status(200).json(sectionData);
+  }
+});
+
+
 //Rota para finalizar um jogo
 // body = [sectionId, winnerId, looserId]
 route.post("/endGame", async (req, res) => {
@@ -474,12 +538,16 @@ route.post("/endGame", async (req, res) => {
 // body = [sectionId]
 route.post("/endSection", async (req, res) => {
   let sectionDoc = await firebase.collection("sections").doc(req.body.sectionId).get();
-  await sectionDoc.ref.update({
+  let batch = firebase.batch();
+  batch.update(sectionDoc.ref, {
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
     status: "FINISHED",
   });
-  await firebase.collection("users").doc(sectionDoc.get("admin_id")).update({ current_section_id: null });
-  await firebase.collection("users").doc(sectionDoc.get("invited_id")).update({ current_section_id: null });
+  batch.update(firebase.collection("users").doc(sectionDoc.get("admin_id")), { current_section_id: null, current_game: null });
+  if (sectionDoc.get("invited_id")) {
+    batch.update(firebase.collection("users").doc(sectionDoc.get("invited_id")), { current_section_id: null, current_game: null });
+  }
+  batch.commit();
   res.status(200).send("OK");
 });
 
